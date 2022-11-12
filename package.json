@@ -1,0 +1,40 @@
+{
+  "name": "mobilizon-typescript-sdk",
+  "version": "0.0.1",
+  "description": "A small library to interface with Mobilizon-instances",
+  "main": "index.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "scripts": {
+    "test": "doctest-ts-improved lib/ && mocha --require ts-node/register \"lib/**/*.doctest.ts\" \"test/**/*.ts\" && (find . -type f -name \"*.doctest.ts\" | xargs rm)",
+    "generate-interfaces": "graphql-code-generator --config ./codegen.yml"
+  },
+  "keywords": [
+    "mobilizon",
+    "calendar",
+    "sdk"
+  ],
+  "author": "Pieter Vander Vennet",
+  "license": "GPL-3.0-or-later",
+  "dependencies": {
+    "@graphql-codegen/typescript": "^2.8.1",
+    "@graphql-codegen/typescript-operations": "^2.5.6",
+    "@types/ical": "^0.8.0",
+    "@types/lodash": "^4.14.188",
+    "@types/mocha": "^10.0.0",
+    "chai": "^4.3.7",
+    "doctest-ts-improved": "^0.8.8",
+    "fs": "^0.0.1-security",
+    "graphql": "^14.7.0",
+    "graphql-code-generator": "^0.18.2",
+    "https": "^1.0.0",
+    "ical": "^0.8.0",
+    "mocha": "^10.1.0",
+    "ts-node": "^10.9.1"
+  },
+  "devDependencies": {
+    "@graphql-codegen/cli": "^2.13.11",
+    "typescript": "^4.8.4"
+  }
+}
