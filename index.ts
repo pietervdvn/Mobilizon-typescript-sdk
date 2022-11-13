@@ -1,8 +1,9 @@
 import * as fs from "fs";
-import {MobilizonInstance} from "./lib/Instance";
-import {Group, Person} from "./src/graphql-types";
+import {AuthorizedInstance, MobilizonInstance} from "./lib/Instance";
 import {Utils} from "./lib/Utils";
-import * as ical from "ical"
+import * as fakedom from "fake-dom"
+import {Group} from "./src/graphql-types";
+import {IcalPoster} from "./bot/IcalPoster";
 
 interface Config {
     email: string,
@@ -12,65 +13,87 @@ interface Config {
 
 export default class Main {
 
+
     async main(args: string[]) {
+        
+       
+        if (fakedom === undefined || document === undefined) {
+            throw "FakeDom not initialized"
+        }
         console.log("Mobilizon importer 0.0.1")
         console.log("Arguments:", args)
         const configfilepath = args[0] ?? "config.json"
         const config: Config = JSON.parse(fs.readFileSync(configfilepath, "utf8"))
 
         const instance = new MobilizonInstance(config.server)
-        const authInstance = await instance.login(config.email, config.password)
+
+        let authInstance: AuthorizedInstance
+        try {
+
+            authInstance = await instance.login(config.email, config.password)
+
+        } catch (e) {
+            if ((<any>e).toString() === "User not found") {
+                console.log("User not found; creating user now")
+                await instance.CreateAccount(config.email, config.password)
+                console.warn("You should have received a confirmation email on " + config.email + ", please click it and then run this script again")
+                return
+            }
+            throw e
+        }
+        const userinfo = await authInstance.GetUserInfo()
+
+        console.log("This bot has to following profiles: ", userinfo.map(i => i.preferredUsername).join(", "))
         const memberships = await authInstance.GetGroupMemberships()
-        const testgroup: Group = <any>memberships.find(m => m.parent?.preferredUsername == "pietervdvn_test_group")?.parent
-        console.log("Posting in group:", testgroup?.preferredUsername)
-        const info = await authInstance.GetUserInfo()
-        const alias = <Person>info.find(alias => !alias.name?.endsWith("-bot"))
-        console.log("Posting as ", JSON.stringify(alias))
 
+        const invitedTo = memberships.filter(group => group.role === "INVITED")
+        for (const group of invitedTo) {
+            await authInstance.AcceptInvite(group)
+        }
 
-        const icalData = await Utils.Download("https://osmcal.org/events.ics")
-        // Calendar = object which maps ID --> CalendarComponent
-        const calendar = <any>ical.parseICS(icalData)
+        const linksToHandle: { frequency: number, tags: string[], link: string, group: Group }[] = []
 
-        for (const calendarKey in calendar) {
-            const eventIcal = calendar[calendarKey]
-            const event = Utils.IcalToEventParameters(eventIcal, alias, testgroup)
-            try {
-                console.log("Inspecting ", event.title)
-                if(event.beginsOn === undefined){
-                    console.log("Skipping ",event.title,", no start time given")
+        console.log("This bot is part of the following groups:")
+        console.log("GROUPNAME \t| ROLE      \t| SUMMARY \t\t\t| ICAL-LINKS (reload every _n_ seconds)")
+        for (const membership of memberships) {
+            const div = document.createElement("p")
+            div.innerHTML = membership.parent?.summary
 
-                    continue
-                }
-                if(new Date().getTime() > event.beginsOn.getTime()){
-                    console.log("Skipping ",event.title,", it's in the past")
-                    continue
-                }
-                if (await authInstance.AlreadyExists(event)) {
-                    console.log("Already exists:", event.title)
-                    continue
-                }
-                await authInstance.CreateEvent(event)
-                console.log("Created event ", event.title)
-            } catch (e) {
-                console.error("ERROR while inspecting "+ event.title+" "+ e)
+            const allLinks = Array.from(div.getElementsByTagName("a")).filter(a => a.href.endsWith(".ical") || a.href.endsWith(".ics"))
+            const withFreq = allLinks.map(a => ({
+                frequency: Utils.extractFrequency(a.parentElement.textContent),
+                link: a.href,
+                tags: a.parentElement.textContent.split(" ").filter(s => s.startsWith("#"))
+            }))
+            console.log(
+                [
+                    membership.parent?.name,
+                    membership.role,
+                    div.textContent.substring(0, 31),
+                    withFreq.map(a => a.link + " (" + a.frequency + "s, "+a.tags.join("")+")").join(" ")
+                ].join("\t"))
+                
+              
+            if (membership.role !== "MODERATOR" && membership.role !== "ADMINISTRATOR" && membership.role !== "CREATOR") {
+                console.warn("    No rights to make changes to this group - not attempting to create events")
+                continue
+            }
+
+            for (const withFreqElement of withFreq) {
+                linksToHandle.push({
+                    ...withFreqElement,
+                    group: membership.parent
+                })
             }
         }
 
-        /*
-        await authInstance.CreateEvent(
-            {
-                attributedToId: testgroup, 
-                organizerActorId: alias,
-                beginsOn: new Date(2023,4,1,12,0,0),
-                description: "This is a test event, please ignore",
-                title: "Test event",
-                endsOn: new Date(2023,4,1,13,0,0),
 
-            }
-        )//*/
-        //console.log(JSON.stringify(memberships, null, "  "))
-        //   console.log(await authInstance.GetInfo())
+        for (const icalToHandle of linksToHandle) {
+            const icalData = await Utils.Download(icalToHandle.link)
+            await new IcalPoster(authInstance, userinfo[0], icalToHandle.tags, icalToHandle.group).PostAllEvents(icalData)
+        }
+
+
     }
 }
 

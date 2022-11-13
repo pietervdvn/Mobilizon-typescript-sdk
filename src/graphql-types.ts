@@ -19,7 +19,7 @@ export interface Scalars {
   DateTime: any;
   /**
    * The `Point` scalar type represents Point geographic information compliant string data,
-   * represented as floats separated by a semi-colon. The geodetic system is WGS 84
+   * represented as floats separated by a semi-colon in `lon;lat`. The geodetic system is WGS 84
    */
   Point: any;
   /**
