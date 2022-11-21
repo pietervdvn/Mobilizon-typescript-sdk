@@ -1,4 +1,3 @@
-import {Utils} from "./Utils";
 import {
     Actor,
     Address,
@@ -16,7 +15,9 @@ import {
     Member,
     Person,
     RootMutationTypeUpdateEventArgs
-} from "../src/graphql-types";
+} from "./Definitions";
+import fetch from "node-fetch";
+import {Blob} from 'buffer';
 
 export class MobilizonInstance {
     private readonly _api: string;
@@ -62,7 +63,15 @@ export class MobilizonInstance {
         const query = {
             "operationName": "SearchAddress",
             "variables": {"query": searchText},
-            "query": "query SearchAddress($query: String!, $type: AddressSearchType) {\n  searchAddress(query: $query, type: $type) { ...AdressFragment} } fragment AdressFragment on Address { id  description  geom\n  street\n  locality\n  postalCode\n  region\n  country  }}\n"
+            "query": `query SearchAddress($query: String!, $type: AddressSearchType) {
+  searchAddress(query: $query, type: $type) { ...AdressFragment} } fragment AdressFragment on Address { id  description  geom
+  street
+  locality
+  postalCode
+  region
+  country
+  }
+`
         }
         let responseBody = await this.ApiFetch(query)
         return responseBody.searchAddress;
@@ -110,7 +119,7 @@ export class MobilizonInstance {
         return reponse.events.elements
     }
 
-    public async FetchGroupEvents(groupname: string, afterdate?: Date, beforedate?: Date): Promise<Group> {
+    public async FetchGroupEventTotal(groupname: string, afterdate?: Date, beforedate?: Date): Promise<number> {
         const query = {
             "operationName": "FetchGroup",
             "variables": {
@@ -118,9 +127,110 @@ export class MobilizonInstance {
                 "beforeDateTime": beforedate?.toISOString(),
                 "afterDateTime": afterdate?.toISOString()
             },
-            "query": "query FetchGroup($name: String!, $afterDateTime: DateTime, $beforeDateTime: DateTime, $organisedEventsPage: Int, $organisedEventsLimit: Int, $postsPage: Int, $postsLimit: Int, $membersPage: Int, $membersLimit: Int, $discussionsPage: Int, $discussionsLimit: Int) {\n group(preferredUsername: $name) { ...GroupFullFields __typename\n }\n}\n\nfragment GroupFullFields on Group {\n ...ActorFragment\n suspended\n visibility\n openness\n manuallyApprovesFollowers\n physicalAddress { description street locality postalCode region country geom type id originId url __typename\n }\n avatar { id url name metadata { width height blurhash __typename } __typename\n }\n banner { id url name metadata { width height blurhash __typename } __typename\n }\n organizedEvents( afterDatetime: $afterDateTime beforeDatetime: $beforeDateTime page: $organisedEventsPage limit: $organisedEventsLimit\n ) { elements { id uuid title beginsOn status draft language options {  maximumAttendeeCapacity  __typename } participantStats {  participant  notApproved  __typename } attributedTo {  ...ActorFragment  __typename } organizerActor {  ...ActorFragment  __typename } picture {  id  url  __typename } physicalAddress {  ...AdressFragment  __typename } options {  ...EventOptions  __typename } tags {  ...TagFragment  __typename } __typename } total __typename\n }\n discussions(page: $discussionsPage, limit: $discussionsLimit) { total elements { ...DiscussionBasicFields __typename } __typename\n }\n posts(page: $postsPage, limit: $postsLimit) { total elements { ...PostBasicFields __typename } __typename\n }\n members(page: $membersPage, limit: $membersLimit) { elements { id role actor {  ...ActorFragment  __typename } insertedAt __typename } total __typename\n }\n resources(page: 1, limit: 3) { elements { id title resourceUrl summary updatedAt type path metadata {  ...ResourceMetadataBasicFields  __typename } __typename } total __typename\n }\n todoLists { elements { id title todos {  elements {  id  title  status  dueDate  assignedTo {   id   preferredUsername   __typename  }  __typename  }  total  __typename } __typename } total __typename\n }\n __typename\n}\n\nfragment ActorFragment on Actor {\n id\n avatar { id url __typename\n }\n type\n preferredUsername\n name\n domain\n summary\n url\n __typename\n}\n\nfragment AdressFragment on Address {\n id\n description\n geom\n street\n locality\n postalCode\n region\n country\n type\n url\n originId\n timezone\n __typename\n}\n\nfragment EventOptions on EventOptions {\n maximumAttendeeCapacity\n remainingAttendeeCapacity\n showRemainingAttendeeCapacity\n anonymousParticipation\n showStartTime\n showEndTime\n timezone\n offers { price priceCurrency url __typename\n }\n participationConditions { title content url __typename\n }\n attendees\n program\n commentModeration\n showParticipationPrice\n hideOrganizerWhenGroupEvent\n isOnline\n __typename\n}\n\nfragment TagFragment on Tag {\n id\n slug\n title\n __typename\n}\n\nfragment DiscussionBasicFields on Discussion {\n id\n title\n slug\n insertedAt\n updatedAt\n lastComment { id text actor { ...ActorFragment __typename } publishedAt deletedAt __typename\n }\n __typename\n}\n\nfragment PostBasicFields on Post {\n id\n title\n slug\n url\n author { ...ActorFragment __typename\n }\n attributedTo { ...ActorFragment __typename\n }\n insertedAt\n updatedAt\n publishAt\n draft\n visibility\n language\n picture { id url name __typename\n }\n tags { ...TagFragment __typename\n }\n __typename\n}\n\nfragment ResourceMetadataBasicFields on ResourceMetadata {\n imageRemoteUrl\n height\n width\n type\n faviconUrl\n __typename\n}"
+            "query": `query FetchGroup($name: String!, $afterDateTime: DateTime, $beforeDateTime: DateTime, $organisedEventsPage: Int, $organisedEventsLimit: Int) {
+ group(preferredUsername: $name) { ...GroupFullFields
+ }
+}
+
+fragment GroupFullFields on Group {
+ organizedEvents( afterDatetime: $afterDateTime beforeDatetime: $beforeDateTime page: $organisedEventsPage limit: $organisedEventsLimit) { total  }
+}
+
+`
         }
-        return await this.ApiFetch(query)
+        const response: { group: Group } = (await this.ApiFetch(query))
+        return response.group.organizedEvents.total
+    }
+
+    /**
+     * Fetches the specified group information with _all_ group events
+     * @param groupname
+     * @param afterdate
+     * @param beforedate
+     * @constructor
+     */
+    public async FetchGroup(groupname: string, afterdate?: Date, beforedate?: Date): Promise<Group> {
+        const eventCount = await this.FetchGroupEventTotal(groupname)
+        const query = {
+            "operationName": "FetchGroup",
+            "variables": {
+                "name": groupname,
+                "beforeDateTime": beforedate?.toISOString(),
+                "afterDateTime": afterdate?.toISOString(),
+                organisedEventsLimit: eventCount
+            },
+            "query": `query FetchGroup($name: String!, $afterDateTime: DateTime, $beforeDateTime: DateTime, $organisedEventsPage: Int, $organisedEventsLimit: Int) {
+ group(preferredUsername: $name) { ...GroupFullFields __typename
+ }
+}
+
+fragment GroupFullFields on Group {
+ ...ActorFragment
+ organizedEvents( afterDatetime: $afterDateTime beforeDatetime: $beforeDateTime page: $organisedEventsPage limit: $organisedEventsLimit
+ ) { elements { id uuid title beginsOn status draft language options {  maximumAttendeeCapacity  __typename } participantStats {  participant  notApproved  __typename } attributedTo {  ...ActorFragment  __typename } organizerActor {  ...ActorFragment  __typename } picture {  id  url  __typename } physicalAddress {  ...AdressFragment  __typename } options {  ...EventOptions  __typename } tags {  ...TagFragment  __typename } __typename }
+ }
+}
+
+fragment ActorFragment on Actor {
+ id
+ avatar { id url }
+ banner { id url }
+ type
+ preferredUsername
+ name
+ domain
+ summary
+ url
+ __typename
+}
+
+fragment AdressFragment on Address {
+ id
+ description
+ geom
+ street
+ locality
+ postalCode
+ region
+ country
+ type
+ url
+ originId
+ timezone
+ __typename
+}
+
+fragment EventOptions on EventOptions {
+ maximumAttendeeCapacity
+ remainingAttendeeCapacity
+ showRemainingAttendeeCapacity
+ anonymousParticipation
+ showStartTime
+ showEndTime
+ timezone
+ offers { price priceCurrency url __typename
+ }
+ participationConditions { title content url __typename
+ }
+ attendees
+ program
+ commentModeration
+ showParticipationPrice
+ hideOrganizerWhenGroupEvent
+ isOnline
+ __typename
+}
+
+fragment TagFragment on Tag {
+ id
+ slug
+ title
+ __typename
+}
+
+`
+        }
+        return (await this.ApiFetch(query)).group
     }
 
     /**
@@ -158,13 +268,14 @@ export class MobilizonInstance {
         const result = response.fetchPerson.organizedEvents.elements
         this.personEventCache = result
         this.personEventCacheMoment = new Date()
-        console.log(result)
         return result
     }
 
 
     protected async ApiFetch(body: any | string, authToken?: string): Promise<any> {
-        const apiUrl = this._api;
+        if (typeof body !== "string") {
+            body = JSON.stringify(body)
+        }
         const headers = <any>{
             "accept": "*/*",
             "accept-language": "en-US,en;q=0.9",
@@ -174,23 +285,30 @@ export class MobilizonInstance {
             "sec-fetch-mode": "cors",
             "sec-fetch-site": "same-origin",
             "sec-gpc": "1",
+            "Content-Type": "application/json",
+            // Use 'Blob' to determine the size in bytes. Some characters (e.g. é, ç, ... take up two bytes)
+            "Content-Length": new Blob([body]).size
         }
         if (authToken) {
             headers["authorization"] = "Bearer " + authToken;
         }
-        const response = await Utils.Post(apiUrl, body, headers)
-        if (response.length == 0) {
-            throw "empty string as answer! The query is: " + JSON.stringify(body).substring(0, 500)
-        }
+
+        const response = await fetch(this._api, {
+            method: 'POST',
+            headers,
+            body
+        })
+        const txt = await response.text()
         let result: any;
         try {
+            result = JSON.parse(txt)
 
-            result = JSON.parse(response);
         } catch (e) {
-            throw "Invalid response: not a JSON: " + response.substring(0, 1000)
+            throw "Could not parse response: " + txt
         }
+
         if (result.errors) {
-            throw result.errors[0].message
+            throw result.errors
         }
         return result.data
     }
@@ -307,7 +425,11 @@ export class AuthorizedInstance extends MobilizonInstance {
 
     public async AlreadyExists(information: EventParameters): Promise<boolean> {
         const variables = EventParametersUtils.ParametersToRootParameters(information)
-        const previousEvents = await this.FetchPersonEvents(information.organizerActorId)
+        const previousEvents: { beginsOn?: string, title?: string }[] = await this.FetchPersonEvents(information.organizerActorId)
+        if (information.attributedToId) {
+            // const previousGroupEvents = await this.FetchGroupFetchGroupEvents(information.attributedToId.name, new Date())
+            // previousEvents.push(...(previousGroupEvents.organizedEvents.elements ?? []))
+        }
         for (const previousEvent of previousEvents) {
             const datediff = <any>new Date(previousEvent.beginsOn) - <any>information.beginsOn
             if (datediff == 0 && previousEvent.title === variables.title) {

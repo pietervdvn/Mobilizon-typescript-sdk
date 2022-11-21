@@ -1,9 +1,10 @@
 import * as fs from "fs";
-import {AuthorizedInstance, MobilizonInstance} from "./lib/Instance";
-import {Utils} from "./lib/Utils";
+import {Utils} from "./Utils";
 import * as fakedom from "fake-dom"
-import {Group} from "./src/graphql-types";
-import {IcalPoster} from "./bot/IcalPoster";
+import {AuthorizedInstance, MobilizonInstance} from "mobilizon-typescript-sdk/dist/Instance";
+import {Group} from "mobilizon-typescript-sdk/dist/Definitions";
+import {IcalPoster} from "./IcalPoster";
+import fetch from "node-fetch";
 
 interface Config {
     email: string,
@@ -12,7 +13,6 @@ interface Config {
 }
 
 export default class Main {
-
 
     async main(args: string[]) {
         
@@ -89,8 +89,9 @@ export default class Main {
 
 
         for (const icalToHandle of linksToHandle) {
-            const icalData = await Utils.Download(icalToHandle.link)
-            await new IcalPoster(authInstance, userinfo[0], icalToHandle.tags, icalToHandle.group).PostAllEvents(icalData)
+            const icalDataResponse =  await fetch(icalToHandle.link)
+            const icalData = await icalDataResponse.text()
+            await new IcalPoster(authInstance, userinfo[0], icalToHandle.tags, icalToHandle.group.preferredUsername).PostAllEvents(icalData)
         }
 
 
@@ -98,5 +99,5 @@ export default class Main {
 }
 
 new Main().main(process.argv.slice(2))
-    .catch(e => console.log("ERROR: error message is: " + e.toString().substring(0, 500)))
+    .catch(e => console.log("ERROR: error message is: " + e.toString().substring(0, 500), e))
     .then(() => console.log("All done!"));
