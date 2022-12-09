@@ -69,4 +69,79 @@ export class Utils {
 
         return Math.sqrt(x * x + y * y) * Utils.RadiusOfEarth;
     }
+
+    /**
+     * Walks the 'source'-object to every leaf of the object.
+     * If the leaf at the same location in the 'comparison'-object is different, an object is returned with the changes.
+     * Returns null if no differences are found
+     * @param source
+     * @param comparison
+     */
+    public static difference(source: any, comparison: any) : any | null{
+
+        if(source?.toISOString !== undefined){
+            source = source.toISOString()
+            if(typeof comparison === "string"){
+                comparison = new Date(comparison)
+            }
+        }
+        if(comparison?.toISOString !== undefined){
+            comparison = comparison.toISOString()
+        }
+
+
+        if(typeof source === "object"){
+            if(source == comparison){
+                // Comparison by reference indicated that this is the same object
+                return null;
+            }
+            if(comparison == undefined || comparison == null){
+                return source
+            }
+
+            const diff = {}
+            let hasDiff = false;
+            for (const sourceKey in source) {
+                if(sourceKey.endsWith("Id")){
+                    const key = sourceKey.substring(0, sourceKey.length - 2)
+                    const comparisonId = comparison[key]?.id
+                    if(source[sourceKey].id === comparisonId){
+                        continue
+                    }
+                }
+                
+                let keyDiff : any;
+                if(sourceKey === "description"){
+                    // Mobilizon injects html-attributes.
+                    // We strip them here
+                    const el = document.createElement("div")
+                    el.innerHTML = comparison[sourceKey]
+                    const sourceDescr = source[sourceKey].trim()
+                    const comparisonDescr = el.textContent.trim()
+                    keyDiff = Utils.difference(sourceDescr, comparisonDescr)
+                }else{
+                    keyDiff = Utils.difference(source[sourceKey], comparison[sourceKey])
+                }
+                if(keyDiff === null){
+                    continue
+                }
+                diff[sourceKey] = keyDiff
+                hasDiff = true
+            }
+            if(hasDiff){
+                return diff
+            }else{
+                return null
+            }
+        }else{
+            if(source === undefined && comparison === null){
+                return null;
+            }
+              if(source === comparison){
+                return null;
+            }
+            return source ;
+        }
+        
+    }
 }

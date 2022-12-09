@@ -167,7 +167,7 @@ fragment GroupFullFields on Group {
 fragment GroupFullFields on Group {
  ...ActorFragment
  organizedEvents( afterDatetime: $afterDateTime beforeDatetime: $beforeDateTime page: $organisedEventsPage limit: $organisedEventsLimit
- ) { elements { id uuid title beginsOn status draft language options {  maximumAttendeeCapacity  __typename } participantStats {  participant  notApproved  __typename } attributedTo {  ...ActorFragment  __typename } organizerActor {  ...ActorFragment  __typename } picture {  id  url  __typename } physicalAddress {  ...AdressFragment  __typename } options {  ...EventOptions  __typename } tags {  ...TagFragment  __typename } __typename }
+ ) { elements { id uuid title beginsOn endsOn description status draft language options {  maximumAttendeeCapacity  __typename } participantStats {  participant  notApproved  __typename } attributedTo {  ...ActorFragment  __typename } organizerActor {  ...ActorFragment  __typename } picture {  id  url  __typename } physicalAddress {  ...AdressFragment  __typename } options {  ...EventOptions  __typename } tags {  ...TagFragment  __typename } __typename }
  }
 }
 
@@ -581,6 +581,108 @@ export class AuthorizedInstance extends MobilizonInstance {
         };
 
         return await this.ApiFetch(createEvent)
+    }
+
+    public async UpdateEvent(id: string, event: EventParameters) {
+        if(id === null){
+            throw "Id may not be null to update an event"
+        }
+        //  "physicalAddress":{"country":"Belgium","description":"Muntpunt Café","locality":"Brussels","postalCode":"1000","region":"Brussels-Capital","street":"2 Rue Léopold - Leopoldstraat","type":"house","id":null,"originId":"nominatim:4138936385","url":null,"geom":"4.3542569;50.8491801","timezone":"Europe/Brussels"},
+        //            
+/*
+        const updateExample : EventParameters = {
+            "id": "14161",
+            "title": "OpenStreetMap meetup in Brussels",
+            "description": "Let&#39;s build a community with everybody interested in OpenStreetMap! \n \nThe target audience is everybody! From hearing the word OpenStreetMap a few seconds ago to the total expert in no time. There will be someone you can discuss and have a drink with we’re an interational community speaking English, Dutch, French so come join us!\nEvent Website: <a href=\"https://www.meetup.com/openstreetmap-belgium/events/289850800/\" target=\"_blank\" rel=\"noopener noreferrer ugc\">https://www.meetup.com/openstreetmap-belgium/events/289850800/</a>",
+            "beginsOn":new Date( "2022-12-20T17:00:00.000Z"),
+            "endsOn": new Date("2022-12-20T19:00:00.000Z"),
+            "status": "CONFIRMED",
+            "category": "MEETING",
+            "visibility": "PUBLIC",
+            "joinOptions": "FREE",
+            "draft": false,
+            "tags": [
+                "openstreetmap",
+                "osmcal"
+            ],
+            "onlineAddress": null,
+            "phoneAddress": null,
+            "physicalAddress": {
+                "country": "Belgium",
+                "description": "Muntpunt Café",
+                "locality": "Brussels",
+                "postalCode": "1000",
+                "region": "Brussels-Capital",
+                "street": "2 Rue Léopold - Leopoldstraat",
+                "type": "house",
+                "id": null,
+                "originId": "nominatim:4138936385",
+                "url": null,
+                "geom": "4.3542569;50.8491801",
+                "timezone": "Europe/Brussels"
+            },
+            "options": {
+                "maximumAttendeeCapacity": null,
+                "remainingAttendeeCapacity": null,
+                "showRemainingAttendeeCapacity": null,
+                "anonymousParticipation": true,
+                "showStartTime": true,
+                "showEndTime": true,
+                "timezone": "Europe/Brussels",
+                "offers": [],
+                "participationConditions": null,
+                "attendees": null,
+                "program": null,
+                "commentModeration": null,
+                "showParticipationPrice": null,
+                "hideOrganizerWhenGroupEvent": false,
+                "isOnline": false
+            },
+            "metadata": [
+                {
+                    "key": "mz:accessibility:wheelchairAccessible",
+                    "value": "fully",
+                    "type": "STRING"
+                }
+            ],
+            "attributedToId": "409107",
+            "contacts": [],
+            "organizerActorId": "409104"
+        };//*/
+        const variables = {...event, id, organizerActorId: event.organizerActorId.id}
+        
+        const blacklist = ["__typename","avatar","banner","domain","id","name","organizedEvents","preferredUsername","summary","type","url"]
+        for (const key of blacklist) {
+            delete variables[key]
+        }
+        const query = {
+            "operationName": "updateEvent",
+            "variables": variables,
+            "query": "mutation updateEvent(" +
+                "$id: ID!, " +
+                "$title: String, " +
+                "$description: String, " +
+                "$beginsOn: DateTime, " +
+                "$endsOn: DateTime, " +
+                "$status: EventStatus, " +
+                "$visibility: EventVisibility, " +
+                "$joinOptions: EventJoinOptions, " +
+                "$draft: Boolean, " +
+                "$tags: [String], " +
+                "$picture: MediaInput, " +
+                "$onlineAddress: String, " +
+                "$phoneAddress: String, " +
+                "$organizerActorId: ID, " +
+                "$attributedToId: ID, " +
+                "$category: EventCategory, " +
+                "$physicalAddress: AddressInput, " +
+                "$options: EventOptionsInput, " +
+                "$contacts: [Contact], " +
+                "$metadata: [EventMetadataInput])" +
+                " {\n  updateEvent(\n    eventId: $id\n    title: $title\n    description: $description\n    beginsOn: $beginsOn\n    endsOn: $endsOn\n    status: $status\n    visibility: $visibility\n    joinOptions: $joinOptions\n    draft: $draft\n    tags: $tags\n    picture: $picture\n    onlineAddress: $onlineAddress\n    phoneAddress: $phoneAddress\n    organizerActorId: $organizerActorId\n    attributedToId: $attributedToId\n    category: $category\n    physicalAddress: $physicalAddress\n    options: $options\n    contacts: $contacts\n    metadata: $metadata\n  ) {\n    ...FullEvent\n    __typename\n  }\n}\n\nfragment FullEvent on Event {\n  id\n  uuid\n  url\n  local\n  title\n  description\n  beginsOn\n  endsOn\n  status\n  visibility\n  joinOptions\n  draft\n  language\n  category\n  picture {\n    id\n    url\n    name\n    metadata {\n      width\n      height\n      blurhash\n      __typename\n    }\n    __typename\n  }\n  publishAt\n  onlineAddress\n  phoneAddress\n  physicalAddress {\n    ...AdressFragment\n    __typename\n  }\n  organizerActor {\n    ...ActorFragment\n    __typename\n  }\n  contacts {\n    ...ActorFragment\n    __typename\n  }\n  attributedTo {\n    ...ActorFragment\n    __typename\n  }\n  participantStats {\n    going\n    notApproved\n    participant\n    __typename\n  }\n  tags {\n    ...TagFragment\n    __typename\n  }\n  relatedEvents {\n    id\n    uuid\n    title\n    beginsOn\n    status\n    language\n    picture {\n      id\n      url\n      name\n      metadata {\n        width\n        height\n        blurhash\n        __typename\n      }\n      __typename\n    }\n    physicalAddress {\n      ...AdressFragment\n      __typename\n    }\n    organizerActor {\n      ...ActorFragment\n      __typename\n    }\n    attributedTo {\n      ...ActorFragment\n      __typename\n    }\n    options {\n      ...EventOptions\n      __typename\n    }\n    tags {\n      ...TagFragment\n      __typename\n    }\n    __typename\n  }\n  options {\n    ...EventOptions\n    __typename\n  }\n  metadata {\n    key\n    title\n    value\n    type\n    __typename\n  }\n  __typename\n}\n\nfragment AdressFragment on Address {\n  id\n  description\n  geom\n  street\n  locality\n  postalCode\n  region\n  country\n  type\n  url\n  originId\n  timezone\n  pictureInfo {\n    url\n    author {\n      name\n      url\n      __typename\n    }\n    source {\n      name\n      url\n      __typename\n    }\n    __typename\n  }\n  __typename\n}\n\nfragment TagFragment on Tag {\n  id\n  slug\n  title\n  __typename\n}\n\nfragment EventOptions on EventOptions {\n  maximumAttendeeCapacity\n  remainingAttendeeCapacity\n  showRemainingAttendeeCapacity\n  anonymousParticipation\n  showStartTime\n  showEndTime\n  timezone\n  offers {\n    price\n    priceCurrency\n    url\n    __typename\n  }\n  participationConditions {\n    title\n    content\n    url\n    __typename\n  }\n  attendees\n  program\n  commentModeration\n  showParticipationPrice\n  hideOrganizerWhenGroupEvent\n  isOnline\n  __typename\n}\n\nfragment ActorFragment on Actor {\n  id\n  avatar {\n    id\n    url\n    __typename\n  }\n  type\n  preferredUsername\n  name\n  domain\n  summary\n  url\n  __typename\n}\n"
+        }
+        
+        await this.ApiFetch(query)
     }
 
     public async DeleteEvent(eventId: string): Promise<void> {

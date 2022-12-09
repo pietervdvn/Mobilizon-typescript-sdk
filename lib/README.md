@@ -15,3 +15,12 @@ import {MobilizonInstance, AuthorizedInstance} from "./Instance";
 const instance = new MobilizonInstance()
 
 ```
+
+## NPM-scripts
+
+- "build": builds the project
+- "patch": Builds the project, moves the output to the 'bot'-package. Use this to make changes and apply them to the bot, without the need to publish
+- "test": Runs unit tests
+- "publish": Publishes a new version to your npm-account. Login is necessary
+- "generate-interfaces": Generates new interfaces based on the graphql-schema file
+ 
